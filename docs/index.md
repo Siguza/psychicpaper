@@ -10,7 +10,7 @@ Yesterday Apple released iOS 13.5 beta 3 (seemingly renaming iOS 13.4.5 to 13.5 
 
 I dubbed it "psychic paper" because, just like [the item by that name][lore] that Doctor Who likes to carry, it allows you get past security checks and make others believe you have a wide range of credentials that you shouldn't have.
 
-In contrast to virtually any other bug and any other exploit I've had to do, this one should be understandable without any background knowledge in iOS and/or exploitation. In that spirit, I'll also try and write this post in a manner that assumes no iOS-specific knowledge. I do expect you however to loosely know what XML, public key encryption and hashes are, and understanding C code is certainly a big advantage.
+In contrast to virtually any other bug and any other exploit I've had to do with, this one should be understandable without any background knowledge in iOS and/or exploitation. In that spirit, I'll also try and write this post in a manner that assumes no iOS- or exploitation-specific knowledge. I do expect you however to loosely know what XML, public key encryption and hashes are, and understanding C code is certainly a big advantage.
 
 So strap in for the story of what I'll boldly claim to be the most elegant exploit for the most powerful sandbox escape on iOS yet. :P
 
@@ -31,7 +31,7 @@ As a first step, let's look at a sample XML file:
 <idk a="b" c="d">xyz</idk>
 ```
 
-The basic concept is that `<tag>` opens a tag, `</tag>` closes it, and stuff goes in between. That stuff can be either raw text, or more tags. Empty tags can be self-closing like `<tag/>`, and they can have attributes like `a="b"` as well, yada yada.  
+The basic concept is that `<tag>` opens a tag, `</tag>` closes it, and stuff goes in between. That stuff can be either raw text or more tags. Empty tags can be self-closing like `<tag/>`, and they can have attributes like `a="b"` as well, yada yada.  
 There's three things in the above file that go beyond just basic tags:
 
 - `<?...?>` - Tags starting and ending with question marks, so-called "processing instructions", are treated specially.
@@ -91,11 +91,11 @@ Now, code signing certificates come in two forms:
 1. The App Store certificate. This is held only by Apple themselves and in order to get signed this way, your app needs to pass the App Store review.
 2. Developer certificates. This can be the free "7-day" certificates, "regular" developer certificate, or enterprise distribution certificates.
 
-In the latter case, the app in question will also require a "provisioning profile", a file that Xcode (and some 3rd party software) can fetch for you, and that needs to be placed in your `App.ipa` bundle at `Payload/Your.app/embedded.mobileprovision`. This file is signed by Apple themselves, and specifies the duration, the list of devices, and the developer accounts it is valid for, as well as all the restrictions that should apply to the app.
+In the latter case, the app in question will also require a "provisioning profile", a file that Xcode (or some 3rd party software) can fetch for you, and that needs to be placed in your `App.ipa` bundle at `Payload/Your.app/embedded.mobileprovision`. This file is signed by Apple themselves, and specifies the duration, the list of devices, and the developer accounts it is valid for, as well as all the restrictions that should apply to the app.
 
 And now a quick look at app sandboxing and security boundaries:
 
-In a standard UNIX environment, pretty much the only security boundaries you get are UID checks. Processes of one UID can't access resources of another UID, and any resource deemed "privileged" requires UID 0. iOS and macOS still use that, but also introduce the concept of "entitlements". In layman's terms, entitlements are a list of properties and/or privileges that should be applied to your binary. If present, they are embedded in the code signature of your binary, in the form of a XML plist file, which might look like this:
+In a standard UNIX environment, pretty much the only security boundaries you get are UID checks. Processes of one UID can't access resources of another UID, and any resource deemed "privileged" requires UID 0, i.e. "root". iOS and macOS still use that, but also introduce the concept of "entitlements". In layman's terms, entitlements are a list of properties and/or privileges that should be applied to your binary. If present, they are embedded in the code signature of your binary, in the form of a XML plist file, which might look like this:
 
 ```xml
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -107,7 +107,7 @@ In a standard UNIX environment, pretty much the only security boundaries you get
 </plist>
 ```
 
-This would mean that the binary in question is allowed to use the `task_for_pid()` mach trap, which is otherwise not allowed, at least on iOS. Such entitlements are checked all throughout iOS (and macOS) and there's well upwards of a thousand different ones in existence (Jonathan Levin has built [a big catalogue of all the ones he could find][entlist], if you're curious). The important thing is just that all 3rd party apps on iOS are put in a containerised environment where they have access to as little files, services and kernel APIs as possible, and entitlements can be used to alter that container, or remove it entirely.
+This would mean that the binary in question "holds the `task_for_pid-allow` entitlement", which in this specific case means is allowed to use the `task_for_pid()` mach trap, which is otherwise not allowed at all (at least on iOS). Such entitlements are checked all throughout iOS and macOS and there's well upwards of a thousand different ones in existence (Jonathan Levin has built [a big catalogue of all the ones he could find][entlist], if you're curious). The important thing is just that all 3rd party apps on iOS are put in a containerised environment where they have access to as little files, services and kernel APIs as possible, and entitlements can be used to poke holes in that container, or remove it entirely.
 
 This presents an interesting problem. With iOS system apps and daemons, Apple is the one signing them, so they wouldn't put any entitlements on there that they don't want the binaries to have. The same goes for App Store apps, where Apple is the one creating the final signature. But with developer certificates, the signature on the binary is created by the developers themselves, and Apple merely signs the provisioning profile. This means that the provisioning profile must create a list of allowed entitlements, or the iOS security model is toast right away. And indeed, if you run `strings` against a provisioning profile, you will find something like this:
 
@@ -131,7 +131,7 @@ Compared to the over-1000 entitlements in existence, this list is extremely shor
 
 #### 1.2 Historical background
 
-Back in fall 2016 [I wrote my first kernel exploit][cl0ver], which was based on the infamous "Pegasus vulnerabilities". Those were memory corruptions in the XNU kernel in a function called `OSUnserializeBinary`, which is a subordinate of another function called `OSUnserializeXML`. These two functions are used to parse not exactly XML data, but rather plist data - they are _the way_ to parse plist data in the kernel.  
+Back in fall 2016 [I wrote my first kernel exploit][cl0ver], which was based on the infamous "Pegasus vulnerabilities". Those were memory corruptions in the XNU kernel in a function called `OSUnserializeBinary`, which is a subordinate of another function called `OSUnserializeXML`. These two functions are used to parse not exactly XML data, but rather plist data - they are _the_ way of parsing plist data in the kernel.  
 Now given the vulnerabilities I had just written an exploit for, and the still janky-looking code those two functions consisted of, in January 2017 I began looking through them in the hopes of finding further memory corruption bugs.
 
 At the same time, I was in the process of figuring out how to build an iOS app without Xcode. Partly because I wanted to understand what's really going on under the hood, and partly because I just hate GUIs for development, especially when you Google how to do something, and the answer is a series of 17 "click here and there"s that are no longer valid because all the GUI stuff moved somewhere else in the last update.  
@@ -139,13 +139,13 @@ So I was getting a provisioning profile via Xcode every 7 days, I'd build the bi
 
 It was this combination, as well as probably a good portion of dumb luck that made me discover the following bug, and excitedly tweet about it:
 
-![tweet][assets/img/1-tweet.png]
+![tweet](assets/img/1-tweet.png)
 
 (Thanks for digging that up, Emma! :D)
 
 ## 2. The bug
 
-In an informal sense, it's clear what it means for a binary to hold an entitlement. But how do you formally specify that? What would code look like that takes as input a process handle and an entitlement name and just returned a boolean saying whether the process does or does not have that entitlement? Luckily for us, XNU has precisely such a function in [`iokit/bsddev/IOKitBSDInit.cpp`][bsdinit]:
+In an informal sense, it's clear what it means for a binary to hold an entitlement. But how do you _formally_ specify that? What would code look like that takes as input a process handle and an entitlement name and just returned a boolean saying whether the process does or does not have that entitlement? Luckily for us, XNU has precisely such a function in [`iokit/bsddev/IOKitBSDInit.cpp`][bsdinit]:
 
 ```cpp
 extern "C" boolean_t
@@ -277,7 +277,7 @@ A very interesting thing about this bug is that I couldn't point you at any part
 - `OSUnserializeXML` in the kernel
 - `IOCFUnserialize` in [IOKitUser][iokituser]
 - `CFPropertyListCreateWithData` in [CoreFoundation][cf]
-- `xpc_create_from_plist` in lipxpc (closed-source)
+- `xpc_create_from_plist` in libxpc (closed-source)
 
 So the three interesting questions that arise from this are:
 
@@ -285,13 +285,14 @@ So the three interesting questions that arise from this are:
 2. Which parser does `amfid` use?
 3. And do all parsers return the same data?
 
-The answer to 1) is "all of them", and to 2) `CFPropertyListCreateWithData`. And as a few folks on Twitter already figured out after my tweet, the answer to 3) is obviously "lolnope". Because it's very hard to parse XML correctly, valid XML makes all parsers return the same data, but slightly invalid XML makes them return just slightly not the same data. In other words, any parser difference can be exploited to make different parsers see different things. This is the very heart of this bug, making it not just a logic flaw, but a system-spanning _design flaw_.
+The answer to 1) is "all of them", and to 2) `CFPropertyListCreateWithData`. And as a few folks on Twitter already figured out after my tweet, the answer to 3) is obviously "lolnope". Because it's very hard to parse XML correctly, _valid_ XML makes all parsers return the same data, but slightly _invalid_ XML makes them return just slightly _not_ the same data. :D  
+In other words, any parser difference can be exploited to make different parsers see different things. This is the very heart of this bug, making it not just a logic flaw, but a system-spanning _design flaw_.
 
 Before we move on to exploiting this, I would like to note that in all my tests, `OSUnserializeXML` and `IOCFUnserialize` always returned the same data, so for the rest of this post I will consider them as equivalent. For brevity, I will also be dubbing `OSUnserializeXML`/`IOCFUnserialize` "IOKit", `CFPropertyListCreateWithData` "CF", and `xpc_create_from_plist` "XPC".
 
 ## 3. The exploit
 
-Let's start with the PoC I tweeted out, which is perhaps the most elegant way to exploit this bug: 
+Let's start with the variant of the PoC I tweeted out, which is perhaps the most elegant way of exploiting this bug: 
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -459,18 +460,19 @@ There's a couple more variants I tested, with varying results:
 </plist>
 ```
 
-These are all less elegant and less rewarding than the first variant, and I'll leave it as an exercise to the reader to figure out what causes those, or how the different parsers react to them.
+These are all less elegant and less rewarding than the first variant, and I'll leave it as an exercise to the reader to figure out what parser difference causes those, or how the different parsers react to them.
+
+One thing to note here though is that, depending on what you use to install IPA files on your iDevice, getting these entitlements to survive that process can be tricky. That is because the entitlements on a provisioned app also contain a team- and app identifier, which at least Cydia Impactor generates randomly every time you sign, and thus has to parse, modify and re-generate the entitlements blob. I don't know about any of its alternatives, but I've been told Xcode works fine with such entitlements, and the manual variant of `codesign`+`ideviceinstaller` certainly does as well.
 
 ## 4. Escaping the sandbox
 
 From this point forward, it's simply a matter of picking entitlements. For a start, we can give ourselves the three entitlements in my initial PoC:
 
-- `com.apple.private.security.no-container` - This prevents the sandbox from applying any profile to our process whatsoever, meaning we can now write to any location the `mobile` user has access to, execute a ton of syscalls, and talk to many hundreds of drivers and userland services that we previously weren't allowed to. And as far as user data goes, security no longer exists.
+- `com.apple.private.security.no-container` - This prevents the sandbox from applying any profile to our process whatsoever, meaning we can now read from and write to any location the `mobile` user has access to, execute a ton of syscalls, and talk to many hundreds of drivers and userland services that we previously weren't allowed to. And as far as user data goes, security no longer exists.
 - `task_for_pid-allow` - Just in case the file system wasn't enough, this allows us to look up the task port of any process running as `mobile`, which we can then use to read and write process memory, or directly get or set thread register states.
 - `platform-application` - Normally we would be marked as a non-Apple binary and not be allowed to perform the above operations on task ports of Apple binaries, but this entitlement marks us as a genuine, mint-condition Cupertino Cookie. :P
 
-And just in case this entitlement magic wasn't enough, say we needed to pretend to CF that we have certain entitlements as well, we could easily do that with the three above ones now.  
-All we have to do is `posix_spawn` in suspended state a binary that holds the entitlement we want, get the newly created process' task port, and make it do our bidding:
+And just in case this entitlement magic wasn't enough, say we needed to pretend to CF that we have certain entitlements as well, we could easily do that with the three above ones now. All we have to do is find a binary that holds the entitlement(s) we want, `posix_spawn` it in suspended state, get the newly created process' task port, and make it do our bidding:
 
 ```c
 task_t haxx(const char *path_of_executable)
@@ -487,9 +489,9 @@ task_t haxx(const char *path_of_executable)
 }
 ```
 
-You can further get some JIT entitlements to dynamically load or generate code, you can spawn a shell, or literally a thousand other things.
+You can further get some JIT entitlements to dynamically load or generate code, you can spawn a shell, or any of literally a thousand other things.
 
-There are a mere two things this bug does not give us: root and kernel. But for both of those, our available attack surfaces just increased a hundredfold, and I would argue that going to root isn't even worth it, because you might as well go straight for the kernel.
+There are a mere two privileges this bug does not give us: root and kernel. But for both of those, our available attack surfaces just increased a hundredfold, and I would argue that going to root isn't even worth it, because you might as well go straight for the kernel.
 
 But I hope you will understand, dear reader, that losing one 0day is loss enough for me, so of course escalating past "mobile with every entitlement ever" is left as an exercise to you. ;)
 
@@ -511,7 +513,7 @@ In iOS 13.4 already, Apple hardened entitlement checks somewhat, due to a bug re
 
 While I don't know the exact details of that bug, based on [a tweet of Linus][tweet] I'm assuming this had to do with bplist, which, while also exploiting parser differences, wouldn't have gotten past `amfid`. And my bug actually survived the 13.4 fix, but was finally killed in 13.5 beta 3.
 
-I also don't know whether it was Linus, Apple or someone else who went on to look for more parser differences, but having two entitlement bugs fixed in two consecutive minor iOS releases feels like too much of a coincidence, so I'm strongly assuming they are related.
+I also don't know whether it was Linus, Apple or someone else who went on to look for more parser differences, but having two entitlement bugs fixed in two consecutive minor iOS releases feels like too much of a coincidence, so I'm strongly assuming whoever it was drew inspiration from Linus' bug.
 
 Apple's final fix consists of introducing a new function called `AMFIUnserializeXML`, which is pasted into both AMFI.kext and `amfid`, and is used to compare against the results of `OSUnserializeXML` and `CFPropertyListCreateWithData` to make sure they are the same. You can still include a sequence like `<!---><!--><!-- -->` in your entitlements and it will go through, but try and sneak anything in between those comments, and AMFI will tear your process to shreds and report to syslog:
 
@@ -521,7 +523,7 @@ So while this does technically bump the number of XML/plist parsers from 4 to 6,
 
 ## 6. Conclusion
 
-As far as first 0days go, I couldn't have wished for anything better. This single bug has assisted me in dozens of research projects, was used thousands of times every year, and has probably saved me just as many hours. And the exploit for it is in all likelihood the most reliable, clean and elegant one I'll ever write in my entire life. And it even fits in a tweet!!  
+As far as first 0days go, I couldn't have wished for a better one. This single bug has assisted me in dozens of research projects, was used thousands of times every year, and has probably saved me just as many hours. And the exploit for it is in all likelihood the most reliable, clean and elegant one I'll ever write in my entire life. And it even fits in a tweet!!  
 Well over 3 years since discovery is not half bad for such a bug, but I sure would've loved to keep it another decade or two, and I know I'll dearly miss it in the time to come.
 
 I've pumped this post out as soon as I could, so if I've left any mistake in here, you have any questions, or just wanna chat in general, feel free to [file an issue][issue], hit me up [on Twitter][twitter], or shoot me an email at `*@*.net` where `*` = `siguza`.
@@ -530,12 +532,17 @@ At the time of writing, this bug is still present on the latest non-beta version
 
 And finally, some of the reactions I got of Twitter for all of you to enjoy:
 
-[![tweet][assets/img/2-joke.png]][joke]  
-[![tweet][assets/img/3-silly.png]][silly]  
-[![tweet][assets/img/4-slick.png]][slick]  
-[![tweet][assets/img/5-beautiful.png]][beautiful]  
-[![tweet][assets/img/6-thonk.png]][thonk]  
-[![tweet][assets/img/7-lmao.png]][lmao]
+[![tweet](assets/img/2-joke.png)][joke]
+
+[![tweet](assets/img/3-silly.png)][silly]
+
+[![tweet](assets/img/4-slick.png)][slick]
+
+[![tweet](assets/img/5-beautiful.png)][beautiful]
+
+[![tweet](assets/img/6-thonk.png)][thonk]
+
+[![tweet](assets/img/7-lmao.png)][lmao]
 
 
   [poc]: https://twitter.com/s1guza/status/1255641164885131268

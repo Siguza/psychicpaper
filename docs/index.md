@@ -6,7 +6,7 @@ These aren't the droids you're looking for.
 
 ## 0. Introduction
 
-Yesterday Apple released iOS 13.5 beta 3 (seemingly renaming iOS 13.4.5 to 13.5 there), and that killed one of my bugs. It wasn't just any bug though, it was the fist 0day I had ever found. And it was probably also the best one. Not necessarily for how much it gives you, but certainly for how much I've used it for, and also for how ridiculously simple it is. So simple, in fact, that [the PoC I tweeted out][poc] looks like an absolute joke. But it's 100% real.
+Yesterday Apple released iOS 13.5 beta 3 (seemingly renaming iOS 13.4.5 to 13.5 there), and that killed one of my bugs. It wasn't just any bug though, it was the first 0day I had ever found. And it was probably also the best one. Not necessarily for how much it gives you, but certainly for how much I've used it for, and also for how ridiculously simple it is. So simple, in fact, that [the PoC I tweeted out][poc] looks like an absolute joke. But it's 100% real.
 
 I dubbed it "psychic paper" because, just like [the item by that name][lore] that Doctor Who likes to carry, it allows you get past security checks and make others believe you have a wide range of credentials that you shouldn't have.
 

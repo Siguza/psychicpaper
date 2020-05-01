@@ -332,7 +332,7 @@ I wrote a little tool called [`plparse`][src] that I have so far been reluctant 
 }
 ```
 
-The output is a lazy JSON-like format, but you get the gist of it. At the top is CF, followed by IOKit, and finally XPC. This means that when we slap the above entitlements file on our app (plus app identifier that we need and such) and `amfid` uses CF to check whether we have any entitlements that the provisioning profile doesn't allow, it doesn't see any. But then when the the kernel or some daemon wants to check whether we're allowed to do Fun Stuff™, they see we have all the permissions for it! :D
+The output is a lazy JSON-like format, but you get the gist of it. At the top is CF, followed by IOKit, and finally XPC. This means that when we slap the above entitlements file on our app (plus app identifier that we need and such) and `amfid` uses CF to check whether we have any entitlements that the provisioning profile doesn't allow, it doesn't see any. But then when the kernel or some daemon wants to check whether we're allowed to do Fun Stuff™, they see we have all the permissions for it! :D
 
 So how does this specific example work?  
 This is the comment tag handling code of CF (the relevant one anyway, there are multiple):

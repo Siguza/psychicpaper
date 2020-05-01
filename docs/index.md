@@ -403,7 +403,7 @@ if (c == '!') {
 }
 ```
 
-As can be seen, IOKit checks for the `!--` chars, and then correctly advances the pointer by three chars before seeing `->`, which doesn't end the comment. CF on the other hand only advances the pointer by _two_ chars, so it parses the second `-` twice, thus seeing both `<!--` and `-->`. This means that while IOKit considers `<!--->` as just the start of a comment, CF considers it as both start and end. After that, we feed both parsers the `<!-->` token, which is now too short to be interpreted as a full comment by either of them. However, the difference in states (in a comment vs. not in a comment) causes a very interesting behaviour: if we're currently inside a comment, both parser see the `-->` ending a comment, otherwise they both just see the `<!--` starting one. Overall, this means:
+As can be seen, IOKit checks for the `!--` chars, and then correctly advances the pointer by three chars before seeing `->`, which doesn't end the comment. CF on the other hand only advances the pointer by _two_ chars, so it parses the second `-` twice, thus seeing both `<!--` and `-->`. This means that while IOKit considers `<!--->` as just the start of a comment, CF considers it as both start and end. After that, we feed both parsers the `<!-->` token, which is now too short to be interpreted as a full comment by either of them. However, the difference in states (in a comment vs. not in a comment) causes a very interesting behaviour: if we're currently inside a comment, both parsers see the `-->` ending a comment, otherwise they both just see the `<!--` starting one. Overall, this means:
 
 ```xml
 <!--->

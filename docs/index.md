@@ -129,6 +129,16 @@ This presents an interesting problem. With iOS system apps and daemons, Apple is
 
 Compared to the over-1000 entitlements in existence, this list is extremely short, with the only two functional entitlements being `keychain-access-groups` (related to credentials) and `get-task-allow` (allowing your app to be debugged). Not a whole lot to work with.
 
+**UPDATE 10. May 2020:**
+
+I've been informed that provisioning profiles are actually in a well-known format, and their contents can be nicely displayed with the following command:
+
+```
+openssl smime -verify -noverify -in embedded.mobileprovision -inform der  
+```
+
+Thanks for pointing that out, Adam. :)
+
 #### 1.2 Historical background
 
 Back in fall 2016 [I wrote my first kernel exploit][cl0ver], which was based on the infamous "Pegasus vulnerabilities". Those were memory corruptions in the XNU kernel in a function called `OSUnserializeBinary`, which is a subordinate of another function called `OSUnserializeXML`. These two functions are used to parse not exactly XML data, but rather plist data - they are _the_ way of parsing plist data in the kernel.  
@@ -413,7 +423,7 @@ IOKit sees these bits
 <!-- -->
 ```
 
-After discovering this, I didn't bother reversing XPC, I simply fed it some test data and observed the results. In this case, it turned out to see the same things as IOKit, which was _perfect_ for my case. I could sneak entitlements past `amfid` using CF, but have them show up when parsed by both IOKit and XPC!
+After discovering this, I didn't bother reversing XPC, I simply fed it some test data and observed the results. In this case, it turned out to see _both_ blocks, which worked _perfectly_ for my case. I could sneak entitlements past `amfid` using CF, but have them show up when parsed by both IOKit and XPC!
 
 There's a couple more variants I tested, with varying results:
 
@@ -470,9 +480,35 @@ From this point forward, it's simply a matter of picking entitlements. For a sta
 
 - `com.apple.private.security.no-container` - This prevents the sandbox from applying any profile to our process whatsoever, meaning we can now read from and write to any location the `mobile` user has access to, execute a ton of syscalls, and talk to many hundreds of drivers and userland services that we previously weren't allowed to. And as far as user data goes, security no longer exists.
 - `task_for_pid-allow` - Just in case the file system wasn't enough, this allows us to look up the task port of any process running as `mobile`, which we can then use to read and write process memory, or directly get or set thread register states.
-- `platform-application` - Normally we would be marked as a non-Apple binary and not be allowed to perform the above operations on task ports of Apple binaries, but this entitlement marks us as a genuine, mint-condition Cupertino Cookie. :P
+- `platform-application` - ~Normally we would be marked as a non-Apple binary and not be allowed to perform the above operations on task ports of Apple binaries, but this entitlement marks us as a genuine, mint-condition Cupertino Cookie. :P~ **UPDATE 10. May 2020: This is no longer true! It used to work like this back when I discovered the bug, but iOS 11 changed that already, and I never bothered to check again, mea culpa. You can work around it though and get the same privileges, it's just more complicated - see below for explanation or [here for code][proxy].**
 
-And just in case this entitlement magic wasn't enough, say we needed to pretend to CF that we have certain entitlements as well, we could easily do that with the three above ones now. All we have to do is find a binary that holds the entitlement(s) we want, `posix_spawn` it in suspended state, get the newly created process' task port, and make it do our bidding:
+There are cases though where the above entitlement magic isn't enough, specifically when you want to talk to a daemon that itself uses CF to parse entitlements. But with a bit of trickery, we can gain _actual, legit_ entitlements that will be seen by _all_ parsers.
+
+---
+
+**// UPDATE 10. May 2020**
+
+A previous version of this blog post included the following snippet of code as a method of gaining "legit" entitlements. It turns out this no longer works as of iOS 11, and I had totally missed that. Nevertheless, let's start with it to see what it would have given us, why it no longer works, and how we can work around that.
+
+Before we can do that though, we do need to look at mach ports and mach messages. There's just no way around it.  
+If you're familiar with file descriptors, pipes and unix sockets, imagine it like this: a mach port is like a file descriptor for a fancy pipe.  
+In userland, you get a mere `uint32` as handle, which only has meaning inside your process. What you see as `0x103` is a different thing than what the next process sees as `0x103`. Using the `mach_msg` syscall, you can send and receive messages to and from that port - if you have the required port rights, that is. For each mach port in your process, you can hold up to three different rights:
+
+- Receive right. This means you "own" the port and are the only one capable of receiving messages on it. Only one such right can exist for any given port.  
+- Send right. This means you can send messages to the port. An unlimited number of such rights can exist for any given port.
+- Send-once right. Same as a send right, except is disintegrates after a single use.
+
+Now, mach messages would essentially just be big binary buffers you send to the receiver, except they can also be used to transfer regions of memory as well as mach port rights. If you hold send rights to two mach ports A and B, you can send a message to B containing a send right for A, and once the receiver receives the message on port B, the kernel will clone your send right and insert the copy into that process'es namespace. With receive and send-once rights you can't create clones, but you can move them. You can also create new send and send-once rights if you hold the receive right. And this isn't just some nice feature, this is something _virtually every mach message_ uses
+
+Apart from being handles in processes, mach port rights can also "registered" on a few kernel interfaces. With most of those, they're just kinda "stashed away" and ready to be looked up, and one thing that has such stashes are processes. They have three sets, in particular:
+
+- "Registered" ports. No inherent function, just an array of 3 mach ports you can register and look up.
+- "Exception" ports. These are used for low-level fault handling, e.g. on accessing unmapped memory. The default handler will convert the issue to POSIX signals where applicable, but that behaviour can be overridden, and issues triaged out-of-process.
+- "Special" ports. Each port in this set has a well-known function and is identified by a constant ID. Some of these are created and handled by userland processes, for example the bootstrap port, used to talk to launchd, others are created and handled directly by the kernel, such as the host and the task ports.
+
+Task ports are of particular interest to us. Each process has a separate task port whose messages are handled by the kernel, and which allows anyone with a send righ to read and write process memory, get and set thread register state, and a series of other operations.
+
+With that said, here's the code that no longer works:
 
 ```c
 task_t haxx(const char *path_of_executable)
@@ -488,6 +524,109 @@ task_t haxx(const char *path_of_executable)
     return task;
 }
 ```
+
+What the above code attempts to do is spawn a process in suspended state (as if you had immediately `SIGSTOP`'ed it), and then it calls `task_for_pid` on the returned pid. As the "mobile" user, `task_for_pid` is our only way of actively obtaining task ports for other processes, and it requires the `task_for_pid-allow` entitlement we so sneakily bestowed upon ourselves. Also, it naturally only allows us to get task ports for processes that also run as mobile, so no LPE to root here. But combining that with `posix_spawn` still has an obvious benefit: you can spawn a validly-entitled binary and then use that API to alter its control flow and make it do your bidding.
+
+So why does this no longer work? Because Apple is petty.  
+In iOS 11 they started marking processes as "platform" (Apple) and "non-platform" (non-Apple) processes. And non-Apple processes can't use task ports of Apple processes. They can _obtain_ them, but passing them back to the API will behave the same way as `TASK_NULL`.
+
+Obviously that's not gonna stop us though. We have way too much power at this point! :D  
+Specifically, we have the power to spawn processes. And it's pretty well known that child processes inherit _a lot_ from their parents. And some of these things just happen to be registered ports, exception ports, and a few of the special ports.
+
+This gives us _a lot_ of control over them, especially the exception ports are _wild_. If any sort of hardware-level exception occurs, we can have the kernel send us the entire register state of the faulting thread, and then send back a new register state to be applied! This gives us full control over the instruction pointer, which in turn we could use to call `memset` and co to gain read & write primitives. The problem is just, we need something that would normally trigger a crash.
+
+Now we could go look for bugs, I'm sure there's quite a bunch of NULL derefs to be found in Apple binaries, but that is a very unstable approach, and limits us to binaries we find crashable bugs in. A much simpler and more proper solution is to look for code that crashes _on purpose_. There isn't a lot of such code, but libxpc does fall under it. Having been written in a much stricter fashion than its predecessors, it attempts to detect API misuse, and crash the process. To do so, it will run a `brk 1` instruction, which is something we can intercept and handle if we control the exception ports. So now it's down to tripping up the API misuse detection. For that, all we need is a daemon that implements a launchd-registered service. Launchd will create a mach port for that service, and once the daemon starts up, it will check in with launchd and take over the receive right for that port. To do so, it uses one of the special ports, the "bootstrap" port. Since we are in full control of that, we can impersonate launchd to any daemon we spawn, and send replies as we see fit. Specifically can send error codes, and if the error code we send is `0x9c` (or 156), libxpc will treat that as a fatal error and call the API misuse routine, thus crashing the process. Any daemon should be good enough for this, but I opted for `/usr/libexec/amfid` specifically. :P
+
+So we now have both the ability and the opportunity to set thread register states... what now? At this point, I could've dropped my code and just told people "you can controll all registers, you'll figure it out". But that's not quite good enough. We came here because Apple marked us as a non-Apple binary, and we won't leave until we can do everything an Apple binary could!
+
+To that end, we're gonna set up a triangle mach message proxy like so:
+
+![proxy diagram](assets/img/8-proxy.png)
+
+The detailed and technical plan for that is as follows:
+
+1.  Pick a binary that's gonna do work for us. In my example: `/usr/libexec/amfid`.
+2.  Use `mach_port_allocate` and `mach_port_insert_right` to create 3 mach ports: an exception port, a bootstrap port, and a proxy port.
+3.  Use `posix_spawnattr_setexceptionports_np` and `posix_spawnattr_setspecialport_np` to set the exception and specil ports of the binary we're gonna spawn.
+4.  Call `mach_ports_register` on ourselves to install our task port plus the proxy port as registered ports. On iOS 13 you could also use this function instead:
+    ```c
+    extern int posix_spawnattr_set_registered_ports_np(posix_spawnattr_t *__restrict attr, mach_port_t portarray[], uint32_t count);
+    ```
+    But you'll have to declare it yourself, and it isn't available on iOS 12, so I chose to avoid it.
+5.  Call `posix_spawn` and spawn the actual process. No `POSIX_SPAWN_START_SUSPENDED` here, since we want it to run and crash.
+6.  Use `xpc_pipe_receive` and `xpc_pipe_routine_reply` to send an error code of `0x9c` and have the process fault.
+7.  Start handling exception messages.
+    1. Always call whole functions and set `lr` to an invalid value so that the exception handler is hit again once the function returns.
+    2. Use `dlsym` to look up addresses in the shared cache, which will be the same in the remote process.
+    3. To read memory, use `platform_thread_get_unique_id`:
+      ```
+      ;-- _platform_thread_get_unique_id:
+      ldr x0, [x0, 8]
+      ret
+      ```
+    4. To write memory, use `xpc_service_instance_set_binpref` and `xpc_service_instance_set_finalizer_f`:
+      ```
+      ;-- _xpc_service_instance_set_binpref:
+      str w1, [x0, 0x1c]
+      ret
+      
+      ;-- _xpc_service_instance_set_finalizer_f:
+      str x1, [x0, 0x88]
+      ret
+      ```
+8.  Proxy setup phase:
+    1. `malloc` a working buffer.
+    2. Make the other process call `mach_ports_lookup` on itself to get our task port and a send right to the proxy port.
+    3. Since the other process can use our task port but not vice versa, make it call `mach_port_extract_right` with `MACH_MSG_TYPE_MOVE_RECEIVE` on us to move the receive right for the proxy port to its namespace.
+9.  Proxy run phase:
+    1. Send a message to the proxy port.
+    2. Make the other process receive it.
+    3. Make it extract the port from our namespace that we actually want to send the message to.
+    4. Replace the destination port in the remote mach message.
+    5. Make it re-send the message it received.
+    6. Receive the reply on our end.
+    7. Repeat.
+
+There's slightly more to it in practice, e.g. you have to fix up the remote message because target and reply port get swapped when receiving, arm64e needs some manual fiddling with thread register values to satisfy PAC, and so on, but it's all very doable.
+
+I'm not gonna past the entire implementation in this post, [check it out here][proxy] if you like.  
+What I will paste here is only the demo code that calls an API that would normally require `TF_PLATFORM`, to demonstrate how beautifully simple it is to use:
+
+```objc
+void demo(void)
+{
+    // This is just setup
+    volatile mach_port_t *realport;
+    mach_port_t proxy = haxx("/usr/libexec/amfid", &realport);
+    kern_return_t ret;
+    task_t task;
+    pid_t pid;
+    posix_spawnattr_t att;
+    posix_spawnattr_init(&att);
+    posix_spawnattr_setflags(&att, POSIX_SPAWN_START_SUSPENDED);
+    posix_spawn(&pid, "/usr/libexec/backboardd", NULL, &att, (char* const*)(const char*[]){ "/usr/libexec/backboardd", NULL }, (char* const*)(const char*[]){ NULL });
+    posix_spawnattr_destroy(&att);
+    task_for_pid(mach_task_self(), pid, &task);
+    NSLog(@"task: 0x%x", task);
+
+    // This is the task port we normally couldn't use.
+#if 0
+    // And now instead of this:
+    ret = mach_ports_register(task, NULL, 0);
+#else
+    // We can do this:
+    *realport = task;
+    ret = mach_ports_register(proxy, NULL, 0);
+#endif
+    NSLog(@"mach_ports_register: %s", mach_error_string(ret));
+}
+```
+
+I hope that's good enough for ya. ;)
+
+**// END OF UPDATE**
+
+---
 
 You can further get some JIT entitlements to dynamically load or generate code, you can spawn a shell, or any of literally a thousand other things.
 
@@ -569,3 +708,4 @@ And finally, some of the reactions I got of Twitter for all of you to enjoy:
   [beautiful]: https://twitter.com/Emu4iOS/status/1255929980808298500
   [thonk]: https://twitter.com/nicolas09F9/status/1255906004719538182
   [lmao]: https://twitter.com/InvoxiPlayGames/status/1255648539851587585
+  [proxy]: https://github.com/Siguza/psychicpaper/blob/master/stuff/proxy.m

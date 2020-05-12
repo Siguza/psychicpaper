@@ -547,7 +547,7 @@ The detailed and technical plan for that is as follows:
 
 1.  Pick a binary that's gonna do work for us. In my example: `/usr/libexec/amfid`.
 2.  Use `mach_port_allocate` and `mach_port_insert_right` to create 3 mach ports: an exception port, a bootstrap port, and a proxy port.
-3.  Use `posix_spawnattr_setexceptionports_np` and `posix_spawnattr_setspecialport_np` to set the exception and specil ports of the binary we're gonna spawn.
+3.  Use `posix_spawnattr_setexceptionports_np` and `posix_spawnattr_setspecialport_np` to set the exception and special ports of the binary we're gonna spawn.
 4.  Call `mach_ports_register` on ourselves to install our task port plus the proxy port as registered ports. On iOS 13 you could also use this function instead:
     ```c
     extern int posix_spawnattr_set_registered_ports_np(posix_spawnattr_t *__restrict attr, mach_port_t portarray[], uint32_t count);

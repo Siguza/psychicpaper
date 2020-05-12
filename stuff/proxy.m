@@ -117,8 +117,8 @@ static int handler(mach_port_t port, callback_t cb, void *arg)
         xpaci(pc);
         uint64_t print_pc = pc;
 #ifdef __arm64e__
-        // iOS 13 needs signing
-        if(@available(iOS 13, *))
+        // iOS 12.1+ needs signing
+        if(@available(iOS 12.1, *))
         {
             req.state.__lr = __builtin_ptrauth_sign_unauthenticated(req.state.__lr, 0 /* ia */, __builtin_ptrauth_string_discriminator("lr"));
             req.state.__opaque_flags &= ~__DARWIN_ARM_THREAD_STATE64_FLAGS_IB_SIGNED_LR;

@@ -8,13 +8,22 @@
  * defined by the Mozilla Public License, v. 2.0.
 **/
 
-#ifndef CFJ_H
-#define CFJ_H
+#ifndef COMMON_H
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <CoreFoundation/CoreFoundation.h>
 
-void cfj_print(FILE *stream, CFTypeRef obj, bool true_json);
+typedef struct
+{
+    bool true_json;
+    bool first;
+    int lvl;
+    FILE *stream;
+} common_ctx_t;
+
+void common_print_bytes(common_ctx_t *ctx, const uint8_t *buf, size_t size);
+void common_print_char(common_ctx_t *ctx, char c);
 
 #endif

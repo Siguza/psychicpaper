@@ -95,9 +95,10 @@ static xpc_object_t xpc_get(xpc_object_t obj, int argc, const char **argv)
 
 int main(int argc, const char **argv)
 {
-    bool cf  = false,
-         io  = false,
-         xpc = false;
+    bool cf   = false,
+         io   = false,
+         xpc  = false,
+         json = false;
     int aoff = 1;
     for(; aoff < argc; ++aoff)
     {
@@ -111,9 +112,10 @@ int main(int argc, const char **argv)
         {
             switch(argv[aoff][i])
             {
-                case 'c': cf  = true; break;
-                case 'i': io  = true; break;
-                case 'x': xpc = true; break;
+                case 'c': cf   = true; break;
+                case 'i': io   = true; break;
+                case 'x': xpc  = true; break;
+                case 'j': json = true; break;
                 default:
                     WRN("Bad flag: -%c", argv[aoff][i]);
                     break;
@@ -122,7 +124,7 @@ int main(int argc, const char **argv)
     }
     if(argc - aoff < 1)
     {
-        WRN("Usage: %s -[cix] file [selector...]", argv[0]);
+        WRN("Usage: %s -[cix] [-j] file [selector...]", argv[0]);
         return -1;
     }
 
@@ -191,7 +193,7 @@ int main(int argc, const char **argv)
             CFTypeRef obj = cf_get(cfplist, argc - aoff, &argv[aoff]);
             if(obj)
             {
-                cfj_print(stdout, obj);
+                cfj_print(stdout, obj, json);
             }
             else
             {
@@ -212,7 +214,7 @@ int main(int argc, const char **argv)
             CFTypeRef obj = cf_get(ioplist, argc - aoff, &argv[aoff]);
             if(obj)
             {
-                cfj_print(stdout, obj);
+                cfj_print(stdout, obj, json);
             }
             else
             {
@@ -233,7 +235,7 @@ int main(int argc, const char **argv)
             xpc_object_t obj = xpc_get(xobj, argc - aoff, &argv[aoff]);
             if(obj)
             {
-                xpcj_print(stdout, obj);
+                xpcj_print(stdout, obj, json);
             }
             else
             {

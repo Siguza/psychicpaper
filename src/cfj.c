@@ -8,60 +8,55 @@
  * defined by the Mozilla Public License, v. 2.0.
 **/
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <CoreFoundation/CoreFoundation.h>
 
+#include "common.h"
 #include "cfj.h"
-
-// The output differs from actual JSON in that:
-// - Dict keys aren't string literals, but just plain text
-// - Nothing is escaped inside string literals
-// - The CFData format is entirely custom, since JSON
-//   has no real concept of raw binary data.
-// Due to the last point however, JSON conformance is not
-// a goal at the moment, but rather just human-readability.
-
-typedef struct
-{
-    int lvl;
-    FILE *stream;
-} cfj_ctx_t;
 
 static void cfj_dict_cb(const void *key, const void *val, void *context);
 static void cfj_arr_cb(const void *val, void *context);
-static void cfj_print_str_raw(cfj_ctx_t *ctx, const CFStringRef str);
-static void cfj_print_internal(cfj_ctx_t *ctx, CFTypeRef obj);
+static void cfj_print_str(common_ctx_t *ctx, const CFStringRef str);
+static void cfj_print_internal(common_ctx_t *ctx, CFTypeRef obj);
 
 static void cfj_dict_cb(const void *key, const void *val, void *context)
 {
-    cfj_ctx_t *ctx = context;
-    cfj_ctx_t newctx =
+    common_ctx_t *ctx = context;
+    if(ctx->first)
     {
-        .lvl = ctx->lvl + 1,
-        .stream = ctx->stream,
-    };
-    fprintf(newctx.stream, "%*s", newctx.lvl * 4, "");
-    cfj_print_str_raw(&newctx, key);
-    fprintf(newctx.stream, ": ");
-    cfj_print_internal(&newctx, val);
-    fprintf(newctx.stream, ",\n");
+        fprintf(ctx->stream, "\n");
+        ctx->first = false;
+    }
+    else
+    {
+        fprintf(ctx->stream, ",\n");
+    }
+    fprintf(ctx->stream, "%*s", ctx->lvl * 4, "");
+    cfj_print_str(ctx, key);
+    fprintf(ctx->stream, ": ");
+    cfj_print_internal(ctx, val);
 }
 
 static void cfj_arr_cb(const void *val, void *context)
 {
-    cfj_ctx_t *ctx = context;
-    cfj_ctx_t newctx =
+    common_ctx_t *ctx = context;
+    if(ctx->first)
     {
-        .lvl = ctx->lvl + 1,
-        .stream = ctx->stream,
-    };
-    fprintf(newctx.stream, "%*s", newctx.lvl * 4, "");
-    cfj_print_internal(&newctx, val);
-    fprintf(newctx.stream, ",\n");
+        fprintf(ctx->stream, "\n");
+        ctx->first = false;
+    }
+    else
+    {
+        fprintf(ctx->stream, ",\n");
+    }
+    fprintf(ctx->stream, "%*s", ctx->lvl * 4, "");
+    cfj_print_internal(ctx, val);
 }
 
-static void cfj_print_str_raw(cfj_ctx_t *ctx, const CFStringRef str)
+static void cfj_print_str(common_ctx_t *ctx, const CFStringRef str)
 {
+    fprintf(ctx->stream, "\"");
     char buf[0x100];
     for(CFIndex i = 0, len = CFStringGetLength(str); i < len; )
     {
@@ -69,12 +64,23 @@ static void cfj_print_str_raw(cfj_ctx_t *ctx, const CFStringRef str)
                 out = 0;
         CFRange range = CFRangeMake(i, max);
         max = CFStringGetBytes(str, range, kCFStringEncodingUTF8, 0, false, (UInt8*)buf, sizeof(buf), &out);
-        fwrite(buf, 1, out, ctx->stream);
+        if(ctx->true_json)
+        {
+            for(size_t j = 0; j < out; ++j)
+            {
+                common_print_char(ctx, buf[j]);
+            }
+        }
+        else
+        {
+            fwrite(buf, 1, out, ctx->stream);
+        }
         i += max;
     }
+    fprintf(ctx->stream, "\"");
 }
 
-static void cfj_print_internal(cfj_ctx_t *ctx, CFTypeRef obj)
+static void cfj_print_internal(common_ctx_t *ctx, CFTypeRef obj)
 {
     CFTypeID type = CFGetTypeID(obj);
     if(type == CFBooleanGetTypeID())
@@ -98,22 +104,24 @@ static void cfj_print_internal(cfj_ctx_t *ctx, CFTypeRef obj)
             unsigned long long val = 0;
             if(CFNumberGetValue(obj, kCFNumberLongLongType, &val))
             {
-                fprintf(ctx->stream, "0x%llx", val);
+                fprintf(ctx->stream, ctx->true_json ? "%llu" : "0x%llx", val);
                 return;
             }
         }
     }
     else if(type == CFStringGetTypeID())
     {
-        fprintf(ctx->stream, "\"");
-        cfj_print_str_raw(ctx, obj);
-        fprintf(ctx->stream, "\"");
+        cfj_print_str(ctx, obj);
         return;
     }
     else if(type == CFDataGetTypeID())
     {
         CFIndex size = CFDataGetLength(obj);
-        if(size > 0)
+        if(ctx->true_json)
+        {
+            common_print_bytes(ctx, CFDataGetBytePtr(obj), size);
+        }
+        else if(size > 0)
         {
             int pad = (ctx->lvl + 1) * 4;
             fprintf(ctx->stream, "<\n%*s", pad, "");
@@ -152,16 +160,38 @@ static void cfj_print_internal(cfj_ctx_t *ctx, CFTypeRef obj)
     }
     else if(type == CFDictionaryGetTypeID())
     {
-        fprintf(ctx->stream, "{\n");
-        CFDictionaryApplyFunction(obj, &cfj_dict_cb, ctx);
-        fprintf(ctx->stream, "%*s}", ctx->lvl * 4, "");
+        common_ctx_t newctx =
+        {
+            .true_json = ctx->true_json,
+            .first = true,
+            .lvl = ctx->lvl + 1,
+            .stream = ctx->stream,
+        };
+        fprintf(ctx->stream, "{");
+        CFDictionaryApplyFunction(obj, &cfj_dict_cb, &newctx);
+        if(!newctx.first)
+        {
+            fprintf(ctx->stream, "\n%*s", ctx->lvl * 4, "");
+        }
+        fprintf(ctx->stream, "}");
         return;
     }
     else if(type == CFArrayGetTypeID())
     {
-        fprintf(ctx->stream, "[\n");
-        CFArrayApplyFunction(obj, CFRangeMake(0, CFArrayGetCount(obj)), &cfj_arr_cb, ctx);
-        fprintf(ctx->stream, "%*s]", ctx->lvl * 4, "");
+        common_ctx_t newctx =
+        {
+            .true_json = ctx->true_json,
+            .first = true,
+            .lvl = ctx->lvl + 1,
+            .stream = ctx->stream,
+        };
+        fprintf(ctx->stream, "[");
+        CFArrayApplyFunction(obj, CFRangeMake(0, CFArrayGetCount(obj)), &cfj_arr_cb, &newctx);
+        if(!newctx.first)
+        {
+            fprintf(ctx->stream, "\n%*s", ctx->lvl * 4, "");
+        }
+        fprintf(ctx->stream, "]");
         return;
     }
     else
@@ -172,10 +202,12 @@ static void cfj_print_internal(cfj_ctx_t *ctx, CFTypeRef obj)
     fprintf(ctx->stream, "<!-- error -->");
 }
 
-void cfj_print(FILE *stream, CFTypeRef obj)
+void cfj_print(FILE *stream, CFTypeRef obj, bool true_json)
 {
-    cfj_ctx_t ctx =
+    common_ctx_t ctx =
     {
+        .true_json = true_json,
+        .first = false,
         .lvl = 0,
         .stream = stream,
     };

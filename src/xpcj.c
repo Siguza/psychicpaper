@@ -14,15 +14,28 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "common.h"
 #include "xpcj.h"
 
-typedef struct
+static void xpcj_print_str(common_ctx_t *ctx, const char *str)
 {
-    int lvl;
-    FILE *stream;
-} xpcj_ctx_t;
+    if(ctx->true_json)
+    {
+        fprintf(ctx->stream, "\"");
+        char c;
+        while((c = *str++) != '\0')
+        {
+            common_print_char(ctx, c);
+        }
+        fprintf(ctx->stream, "\"");
+    }
+    else
+    {
+        fprintf(ctx->stream, "\"%s\"", str);
+    }
+}
 
-static void xpcj_print_internal(xpcj_ctx_t *ctx, xpc_object_t obj)
+static void xpcj_print_internal(common_ctx_t *ctx, xpc_object_t obj)
 {
     xpc_type_t type = xpc_get_type(obj);
     if(type == XPC_TYPE_BOOL)
@@ -37,23 +50,27 @@ static void xpcj_print_internal(xpcj_ctx_t *ctx, xpc_object_t obj)
     }
     else if(type == XPC_TYPE_INT64)
     {
-        fprintf(ctx->stream, "0x%llx", xpc_int64_get_value(obj));
+        fprintf(ctx->stream, ctx->true_json ? "%llu" : "0x%llx", xpc_int64_get_value(obj));
         return;
     }
     else if(type == XPC_TYPE_UINT64)
     {
-        fprintf(ctx->stream, "0x%llx", xpc_uint64_get_value(obj));
+        fprintf(ctx->stream, ctx->true_json ? "%llu" : "0x%llx", xpc_uint64_get_value(obj));
         return;
     }
     else if(type == XPC_TYPE_STRING)
     {
-        fprintf(ctx->stream, "\"%s\"", xpc_string_get_string_ptr(obj));
+        xpcj_print_str(ctx, xpc_string_get_string_ptr(obj));
         return;
     }
     else if(type == XPC_TYPE_DATA)
     {
         size_t size = xpc_data_get_length(obj);
-        if(size > 0)
+        if(ctx->true_json)
+        {
+            common_print_bytes(ctx, xpc_data_get_bytes_ptr(obj), size);
+        }
+        else if(size > 0)
         {
             int pad = (ctx->lvl + 1) * 4;
             fprintf(ctx->stream, "<\n%*s", pad, "");
@@ -92,38 +109,70 @@ static void xpcj_print_internal(xpcj_ctx_t *ctx, xpc_object_t obj)
     }
     else if(type == XPC_TYPE_DICTIONARY)
     {
-        fprintf(ctx->stream, "{\n");
+        common_ctx_t newctx =
+        {
+            .true_json = ctx->true_json,
+            .first = true,
+            .lvl = ctx->lvl + 1,
+            .stream = ctx->stream,
+        };
+        common_ctx_t *newctxp = &newctx;
+        fprintf(ctx->stream, "{");
         xpc_dictionary_apply(obj, ^bool(const char *key, xpc_object_t val)
         {
-            xpcj_ctx_t newctx =
+            if(newctxp->first)
             {
-                .lvl = ctx->lvl + 1,
-                .stream = ctx->stream,
-            };
-            fprintf(newctx.stream, "%*s%s: ", newctx.lvl * 4, "", key);
-            xpcj_print_internal(&newctx, val);
-            fprintf(newctx.stream, ",\n");
+                fprintf(newctx.stream, "\n");
+                newctxp->first = false;
+            }
+            else
+            {
+                fprintf(newctx.stream, ",\n");
+            }
+            fprintf(newctx.stream, "%*s", newctx.lvl * 4, "");
+            xpcj_print_str(newctxp, key);
+            fprintf(newctx.stream, ": ");
+            xpcj_print_internal(newctxp, val);
             return true;
         });
-        fprintf(ctx->stream, "%*s}", ctx->lvl * 4, "");
+        if(!newctx.first)
+        {
+            fprintf(ctx->stream, "\n%*s", ctx->lvl * 4, "");
+        }
+        fprintf(ctx->stream, "}");
         return;
     }
     else if(type == XPC_TYPE_ARRAY)
     {
-        fprintf(ctx->stream, "[\n");
+        common_ctx_t newctx =
+        {
+            .true_json = ctx->true_json,
+            .first = true,
+            .lvl = ctx->lvl + 1,
+            .stream = ctx->stream,
+        };
+        common_ctx_t *newctxp = &newctx;
+        fprintf(ctx->stream, "[");
         xpc_array_apply(obj, ^bool(size_t idx, xpc_object_t val)
         {
-            xpcj_ctx_t newctx =
+            if(newctxp->first)
             {
-                .lvl = ctx->lvl + 1,
-                .stream = ctx->stream,
-            };
+                fprintf(newctx.stream, "\n");
+                newctxp->first = false;
+            }
+            else
+            {
+                fprintf(newctx.stream, ",\n");
+            }
             fprintf(newctx.stream, "%*s", newctx.lvl * 4, "");
-            xpcj_print_internal(&newctx, val);
-            fprintf(newctx.stream, ",\n");
+            xpcj_print_internal(newctxp, val);
             return true;
         });
-        fprintf(ctx->stream, "%*s]", ctx->lvl * 4, "");
+        if(!newctx.first)
+        {
+            fprintf(ctx->stream, "\n%*s", ctx->lvl * 4, "");
+        }
+        fprintf(ctx->stream, "]");
         return;
     }
     else
@@ -134,10 +183,12 @@ static void xpcj_print_internal(xpcj_ctx_t *ctx, xpc_object_t obj)
     fprintf(ctx->stream, "<!-- error -->");
 }
 
-void xpcj_print(FILE *stream, xpc_object_t obj)
+void xpcj_print(FILE *stream, xpc_object_t obj, bool true_json)
 {
-    xpcj_ctx_t ctx =
+    common_ctx_t ctx =
     {
+        .true_json = true_json,
+        .first = false,
         .lvl = 0,
         .stream = stream,
     };

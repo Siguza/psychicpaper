@@ -506,7 +506,7 @@ Apart from being handles in processes, mach port rights can also "registered" on
 - "Exception" ports. These are used for low-level fault handling, e.g. on accessing unmapped memory. The default handler will convert the issue to POSIX signals where applicable, but that behaviour can be overridden, and issues triaged out-of-process.
 - "Special" ports. Each port in this set has a well-known function and is identified by a constant ID. Some of these are created and handled by userland processes, for example the bootstrap port, used to talk to launchd, others are created and handled directly by the kernel, such as the host and the task ports.
 
-Task ports are of particular interest to us. Each process has a separate task port whose messages are handled by the kernel, and which allows anyone with a send righ to read and write process memory, get and set thread register state, and a series of other operations.
+Task ports are of particular interest to us. Each process has a separate task port whose messages are handled by the kernel, and which allows anyone with a send right to read and write process memory, get and set thread register state, and a series of other operations.
 
 With that said, here's the code that no longer works:
 

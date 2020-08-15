@@ -496,7 +496,7 @@ In userland, you get a mere `uint32` as handle, which only has meaning inside yo
 
 - Receive right. This means you "own" the port and are the only one capable of receiving messages on it. Only one such right can exist for any given port.  
 - Send right. This means you can send messages to the port. An unlimited number of such rights can exist for any given port.
-- Send-once right. Same as a send right, except is disintegrates after a single use.
+- Send-once right. Same as a send right, except it disintegrates after a single use.
 
 Now, mach messages would essentially just be big binary buffers you send to the receiver, except they can also be used to transfer regions of memory as well as mach port rights. If you hold send rights to two mach ports A and B, you can send a message to B containing a send right for A, and once the receiver receives the message on port B, the kernel will clone your send right and insert the copy into that process'es namespace. With receive and send-once rights you can't create clones, but you can move them. You can also create new send and send-once rights if you hold the receive right. And this isn't just some nice feature, this is something _virtually every mach message_ uses
 

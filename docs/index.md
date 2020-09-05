@@ -559,21 +559,21 @@ The detailed and technical plan for that is as follows:
     1. Always call whole functions and set `lr` to an invalid value so that the exception handler is hit again once the function returns.
     2. Use `dlsym` to look up addresses in the shared cache, which will be the same in the remote process.
     3. To read memory, use `platform_thread_get_unique_id`:
-      ```
-      ;-- _platform_thread_get_unique_id:
-      ldr x0, [x0, 8]
-      ret
-      ```
+       ```
+       ;-- _platform_thread_get_unique_id:
+       ldr x0, [x0, 8]
+       ret
+       ```
     4. To write memory, use `xpc_service_instance_set_binpref` and `xpc_service_instance_set_finalizer_f`:
-      ```
-      ;-- _xpc_service_instance_set_binpref:
-      str w1, [x0, 0x1c]
-      ret
-      
-      ;-- _xpc_service_instance_set_finalizer_f:
-      str x1, [x0, 0x88]
-      ret
-      ```
+       ```
+       ;-- _xpc_service_instance_set_binpref:
+       str w1, [x0, 0x1c]
+       ret
+       
+       ;-- _xpc_service_instance_set_finalizer_f:
+       str x1, [x0, 0x88]
+       ret
+       ```
 8.  Proxy setup phase:
     1. `malloc` a working buffer.
     2. Make the other process call `mach_ports_lookup` on itself to get our task port and a send right to the proxy port.

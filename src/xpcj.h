@@ -53,6 +53,6 @@ extern bool xpc_array_apply(xpc_object_t xarray, xpc_array_applier_t applier);
 extern void xpc_release(xpc_object_t object);
 extern xpc_object_t xpc_create_from_plist(const void *buf, size_t len);
 
-void xpcj_print(FILE *stream, xpc_object_t obj, bool true_json);
+void xpcj_print(FILE *stream, xpc_object_t obj, bool true_json, bool bytes_raw);
 
 #endif

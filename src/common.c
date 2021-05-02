@@ -10,18 +10,40 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 #include "common.h"
 
+extern size_t SecBase64Encode(void const *src, size_t srcSize, char *dest, size_t destLen);
+
 void common_print_bytes(common_ctx_t *ctx, const uint8_t *buf, size_t size)
 {
-    fprintf(ctx->stream, "\"");
-    for(size_t i = 0; i < size; ++i)
+    if(ctx->bytes_raw)
     {
-        common_print_char(ctx, (char)buf[i]);
+        fprintf(ctx->stream, "\"");
+        for(size_t i = 0; i < size; ++i)
+        {
+            common_print_char(ctx, (char)buf[i]);
+        }
+        fprintf(ctx->stream, "\"");
     }
-    fprintf(ctx->stream, "\"");
+    else
+    {
+        size_t encoded_size = ((size + 2) / 3) * 4 + 1;
+        char *str = malloc(encoded_size);
+        if(!str)
+        {
+            fprintf(ctx->stream, "<!-- malloc -->");
+        }
+        else
+        {
+            str[encoded_size - 1] = '\0';
+            SecBase64Encode(buf, size, str, encoded_size);
+            fprintf(ctx->stream, "\"%s\"", str);
+            free(str);
+        }
+    }
 }
 
 void common_print_char(common_ctx_t *ctx, char c)

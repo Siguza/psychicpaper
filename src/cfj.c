@@ -163,6 +163,7 @@ static void cfj_print_internal(common_ctx_t *ctx, CFTypeRef obj)
         common_ctx_t newctx =
         {
             .true_json = ctx->true_json,
+            .bytes_raw = ctx->bytes_raw,
             .first = true,
             .lvl = ctx->lvl + 1,
             .stream = ctx->stream,
@@ -181,6 +182,7 @@ static void cfj_print_internal(common_ctx_t *ctx, CFTypeRef obj)
         common_ctx_t newctx =
         {
             .true_json = ctx->true_json,
+            .bytes_raw = ctx->bytes_raw,
             .first = true,
             .lvl = ctx->lvl + 1,
             .stream = ctx->stream,
@@ -202,11 +204,12 @@ static void cfj_print_internal(common_ctx_t *ctx, CFTypeRef obj)
     fprintf(ctx->stream, "<!-- error -->");
 }
 
-void cfj_print(FILE *stream, CFTypeRef obj, bool true_json)
+void cfj_print(FILE *stream, CFTypeRef obj, bool true_json, bool bytes_raw)
 {
     common_ctx_t ctx =
     {
         .true_json = true_json,
+        .bytes_raw = bytes_raw,
         .first = false,
         .lvl = 0,
         .stream = stream,

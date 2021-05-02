@@ -18,6 +18,7 @@
 typedef struct
 {
     bool true_json;
+    bool bytes_raw;
     bool first;
     int lvl;
     FILE *stream;

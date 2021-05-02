@@ -1,5 +1,5 @@
 ALL   = plparse
-FLAGS = -Wall -O3 -fblocks -framework CoreFoundation -framework IOKit
+FLAGS = -Wall -O3 -fblocks -framework CoreFoundation -framework IOKit -framework Security
 
 .PHONY: all clean
 

@@ -15,6 +15,6 @@
 #include <stdio.h>
 #include <CoreFoundation/CoreFoundation.h>
 
-void cfj_print(FILE *stream, CFTypeRef obj, bool true_json);
+void cfj_print(FILE *stream, CFTypeRef obj, bool true_json, bool bytes_raw);
 
 #endif

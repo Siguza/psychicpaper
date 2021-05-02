@@ -112,6 +112,7 @@ static void xpcj_print_internal(common_ctx_t *ctx, xpc_object_t obj)
         common_ctx_t newctx =
         {
             .true_json = ctx->true_json,
+            .bytes_raw = ctx->bytes_raw,
             .first = true,
             .lvl = ctx->lvl + 1,
             .stream = ctx->stream,
@@ -147,6 +148,7 @@ static void xpcj_print_internal(common_ctx_t *ctx, xpc_object_t obj)
         common_ctx_t newctx =
         {
             .true_json = ctx->true_json,
+            .bytes_raw = ctx->bytes_raw,
             .first = true,
             .lvl = ctx->lvl + 1,
             .stream = ctx->stream,
@@ -183,11 +185,12 @@ static void xpcj_print_internal(common_ctx_t *ctx, xpc_object_t obj)
     fprintf(ctx->stream, "<!-- error -->");
 }
 
-void xpcj_print(FILE *stream, xpc_object_t obj, bool true_json)
+void xpcj_print(FILE *stream, xpc_object_t obj, bool true_json, bool bytes_raw)
 {
     common_ctx_t ctx =
     {
         .true_json = true_json,
+        .bytes_raw = bytes_raw,
         .first = false,
         .lvl = 0,
         .stream = stream,

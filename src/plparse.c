@@ -139,24 +139,29 @@ int main(int argc, const char **argv)
     const char *ifile = argv[aoff++];
     if(strcmp(ifile, "-") == 0)
     {
-        if(fseek(stdin, 0, SEEK_END) != 0)
+        size_t sz = 0x8000;
+        while(1)
         {
-            WRN("fseek(end): %s", strerror(errno));
-            goto out;
+            sz *= 2;
+            addr = realloc(addr, sz);
+            if(!addr)
+            {
+                WRN("realloc: %s", strerror(errno));
+                goto out;
+            }
+            size_t want = sz - len;
+            size_t have = fread((char*)addr + len, 1, sz - len, stdin);
+            len += have;
+            if(have < want)
+            {
+                if(feof(stdin))
+                {
+                    break;
+                }
+                WRN("fread: %s", strerror(errno));
+                goto out;
+            }
         }
-        len = ftell(stdin);
-        if(fseek(stdin, 0, SEEK_SET) != 0)
-        {
-            WRN("fseek(set): %s", strerror(errno));
-            goto out;
-        }
-        addr = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-        if(addr == MAP_FAILED)
-        {
-            WRN("mmap: %s", strerror(errno));
-            goto out;
-        }
-        fread(addr, 1, len, stdin);
     }
     else
     {
@@ -253,7 +258,14 @@ int main(int argc, const char **argv)
 
     retval = 0;
 out:;
-    if(addr) munmap(addr, len);
-    if(fd >= 0) close(fd);
+    if(fd >= 0)
+    {
+        if(addr) munmap(addr, len);
+        close(fd);
+    }
+    else if(addr)
+    {
+        free(addr);
+    }
     return retval;
 }

@@ -12,6 +12,7 @@
 #include <fcntl.h>              // open
 #include <stdbool.h>
 #include <stdio.h>              // stdin, stdout, stderr, fprintf, printf, fseek, ftell
+#include <stdlib.h>             // realloc, free
 #include <string.h>             // strerror, strcmp
 #include <unistd.h>             // close
 #include <sys/mman.h>           // mmap, munmap

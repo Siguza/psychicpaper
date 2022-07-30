@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <CoreFoundation/CoreFoundation.h>
 
 #include "common.h"

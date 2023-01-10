@@ -667,7 +667,7 @@ Well over 3 years since discovery is not half bad for such a bug, but I sure wou
 
 We can also ask ourselves how a bug like that could ever exist. Why the hell there are 4 different plist parsers on iOS. Why we are still using XML even. But I figure those are more philosophical than technical in nature. And while this entire story shows that it might be a good idea to periodically ask ourselves whether the inaccuracies of our mental models are acceptable, or something should be documented and communicated more thoroughly, I really can't accuse Apple of much here. Bugs like these are probably among the hardest to spot, and I have truly no idea how the hell _I_ was able to find it while so many others didn't.
 
-Now, I've pumped this post out as soon as I possibly could, so if I've left any mistake in here, you have any questions, or just wanna chat in general, feel free to [file an issue][issue], hit me up [on Twitter][twitter], or shoot me an email at `*@*.net` where `*` = `siguza`.
+Now, I've pumped this post out as soon as I possibly could, so if I've left any mistake in here, you have any questions, or just wanna chat in general, feel free to [file an issue][issue], hit me up on ~~Twitter~~ [Mastodon][mastodon], or shoot me an email at `*@*.net` where `*` = `siguza`.
 
 At the time of writing, this bug is still present on the latest non-beta version of iOS. The whole project is available [on GitHub][repo], have fun with it while it lasts!
 
@@ -692,15 +692,15 @@ And finally, some of the reactions I got of Twitter for all of you to enjoy:
   [xkcd-img]: https://imgs.xkcd.com/comics/tags.png
   [entlist]: http://newosxbook.com/ent.jl
   [cl0ver]: https://siguza.github.io/cl0ver/
-  [bsdinit]: https://opensource.apple.com/source/xnu/xnu-6153.61.1/iokit/bsddev/IOKitBSDInit.cpp.auto.html
-  [iouc]: https://opensource.apple.com/source/xnu/xnu-6153.61.1/iokit/Kernel/IOUserClient.cpp.auto.html
-  [iokituser]: https://opensource.apple.com/source/IOKitUser/IOKitUser-1726.41.1/IOCFUnserialize.tab.c.auto.html
-  [cf]: https://opensource.apple.com/source/CF/CF-1153.18/CFPropertyList.c.auto.html
+  [bsdinit]: https://github.com/apple-oss-distributions/xnu/blob/997a5c646dd1c93967b937b2b6fba10c0f0e8d86/iokit/bsddev/IOKitBSDInit.cpp
+  [iouc]: https://github.com/apple-oss-distributions/xnu/blob/997a5c646dd1c93967b937b2b6fba10c0f0e8d86/iokit/Kernel/IOUserClient.cpp
+  [iokituser]: https://github.com/apple-oss-distributions/IOKitUser/blob/d6c4ddd46db03d6150b2dc9719d3845114a0264f/IOCFUnserialize.tab.c
+  [cf]: https://github.com/apple-oss-distributions/CF/blob/dc54c6bb1c1e5e0b9486c1d26dd5bef110b20bf3/CFPropertyList.c
   [src]: https://github.com/Siguza/psychicpaper/tree/master/src
   [cve]: https://support.apple.com/en-us/HT211102
   [tweet]: https://twitter.com/LinusHenze/status/1243170188205461508
   [issue]: https://github.com/Siguza/psychicpaper/issues
-  [twitter]: https://twitter.com/s1guza
+  [mastodon]: https://mastodon.social/@siguza
   [repo]: https://github.com/Siguza/psychicpaper
   [joke]: https://twitter.com/joshuaseltzer/status/1255653827191148544
   [silly]: https://twitter.com/chronic/status/1255679349186981889

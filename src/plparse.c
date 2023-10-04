@@ -187,6 +187,7 @@ int main(int argc, const char **argv)
             goto out;
         }
     }
+    retval = 0;
     if(cf)
     {
         CFPropertyListRef cfplist = NULL;
@@ -206,12 +207,14 @@ int main(int argc, const char **argv)
             else
             {
                 WRN("CF: bad key");
+                retval = -1;
             }
             CFRelease(cfplist);
         }
         else
         {
             WRN("CF says nooo");
+            retval = -1;
         }
     }
     if(io)
@@ -227,12 +230,14 @@ int main(int argc, const char **argv)
             else
             {
                 WRN("IOKit: bad key");
+                retval = -1;
             }
             CFRelease(ioplist);
         }
         else
         {
             WRN("IOKit says nooo");
+            retval = -1;
         }
     }
     if(xpc)
@@ -248,16 +253,17 @@ int main(int argc, const char **argv)
             else
             {
                 WRN("XPC: bad key");
+                retval = -1;
             }
             xpc_release(xobj);
         }
         else
         {
             WRN("XPC says nooo");
+            retval = -1;
         }
     }
 
-    retval = 0;
 out:;
     if(fd >= 0)
     {

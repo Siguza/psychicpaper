@@ -8,9 +8,11 @@
  * defined by the Mozilla Public License, v. 2.0.
 **/
 
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <CoreFoundation/CoreFoundation.h>
 
 #include "common.h"
@@ -195,6 +197,14 @@ static void cfj_print_internal(common_ctx_t *ctx, CFTypeRef obj)
             fprintf(ctx->stream, "\n%*s", ctx->lvl * 4, "");
         }
         fprintf(ctx->stream, "]");
+        return;
+    }
+    else if(type == CFDateGetTypeID())
+    {
+        time_t time = floor(CFDateGetAbsoluteTime(obj) + kCFAbsoluteTimeIntervalSince1970);
+        struct tm date = {};
+        gmtime_r(&time, &date);
+        fprintf(ctx->stream, "\"%04d-%02d-%02dT%02d:%02d:%02dZ\"", date.tm_year + 1900, date.tm_mon + 1, date.tm_mday, date.tm_hour, date.tm_min, date.tm_sec);
         return;
     }
     else

@@ -11,6 +11,8 @@
 #ifndef XPCJ_H
 #define XPCJ_H
 
+#ifdef __APPLE__
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -54,5 +56,7 @@ extern void xpc_release(xpc_object_t object);
 extern xpc_object_t xpc_create_from_plist(const void *buf, size_t len);
 
 void xpcj_print(FILE *stream, xpc_object_t obj, bool true_json, bool bytes_raw);
+
+#endif /* __APPLE__ */
 
 #endif

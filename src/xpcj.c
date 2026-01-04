@@ -8,6 +8,7 @@
  * defined by the Mozilla Public License, v. 2.0.
 **/
 
+#ifdef __APPLE__
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -198,3 +199,5 @@ void xpcj_print(FILE *stream, xpc_object_t obj, bool true_json, bool bytes_raw)
     xpcj_print_internal(&ctx, obj);
     fprintf(stream, "\n");
 }
+
+#endif /* __APPLE__ */

@@ -18,6 +18,22 @@ And run as:
     plparse -x file.plist
     plparse -cix file.plist
 
+### Linux, Windows, etc.
+
+`plparse` can now be built for platforms other than Darwin, though only the IOKit plist flavour (`-i`) is supported.
+
+This requires the `IOCFBootleg` submodule to be checked out:
+
+    git submodule update --init
+
+Then, for native builds:
+
+    make
+
+For cross-compiling, you might have to adjust compiler and flags:
+
+    HOST_OS=... CC=... CFLAGS=... make
+
 ### License
 
 [MPL2](https://github.com/Siguza/psychicpaper/blob/master/LICENSE) with Exhibit B.

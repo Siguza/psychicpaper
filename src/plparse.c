@@ -20,8 +20,11 @@
 #include <CoreFoundation/CoreFoundation.h>
 
 #include "cfj.h"
-#include "iokit.h"
+#ifdef __APPLE__
 #include "xpcj.h"
+#endif
+
+extern CFTypeRef IOCFUnserializeWithSize(const char *buffer, size_t bufferSize, CFAllocatorRef allocator, CFOptionFlags options, CFStringRef *errorString);
 
 #define WRN(str, args...) do { fprintf(stderr, "\x1b[1;93m" str "\x1b[0m\n", ##args); } while(0)
 
@@ -64,6 +67,7 @@ static CFTypeRef cf_get(CFTypeRef obj, int argc, const char **argv)
     return obj;
 }
 
+#ifdef __APPLE__
 static xpc_object_t xpc_get(xpc_object_t obj, int argc, const char **argv)
 {
     for(size_t i = 0; obj && i < argc; ++i)
@@ -93,12 +97,15 @@ static xpc_object_t xpc_get(xpc_object_t obj, int argc, const char **argv)
     }
     return obj;
 }
+#endif
 
 int main(int argc, const char **argv)
 {
-    bool cf   = false,
-         io   = false,
+    bool io   = false,
+#ifdef __APPLE__
+         cf   = false,
          xpc  = false,
+#endif
          json = false,
          raw  = false;
     int aoff = 1;
@@ -114,9 +121,11 @@ int main(int argc, const char **argv)
         {
             switch(argv[aoff][i])
             {
-                case 'c': cf   = true; break;
                 case 'i': io   = true; break;
+#ifdef __APPLE__
+                case 'c': cf   = true; break;
                 case 'x': xpc  = true; break;
+#endif
                 case 'j': json = true; break;
                 case 'r': raw  = true; break;
                 default:
@@ -127,7 +136,11 @@ int main(int argc, const char **argv)
     }
     if(argc - aoff < 1)
     {
+#ifdef __APPLE__
         WRN("Usage: %s -[cix] [-j] [-r] file [selector...]", argv[0]);
+#else
+        WRN("Usage: %s -[i] [-j] [-r] file [selector...]", argv[0]);
+#endif
         return -1;
     }
 
@@ -188,6 +201,7 @@ int main(int argc, const char **argv)
         }
     }
     retval = 0;
+#ifdef __APPLE__
     if(cf)
     {
         CFPropertyListRef cfplist = NULL;
@@ -217,6 +231,7 @@ int main(int argc, const char **argv)
             retval = -1;
         }
     }
+#endif
     if(io)
     {
         CFTypeRef ioplist = IOCFUnserializeWithSize(addr, len, NULL, 0, NULL);
@@ -240,6 +255,7 @@ int main(int argc, const char **argv)
             retval = -1;
         }
     }
+#ifdef __APPLE__
     if(xpc)
     {
         xpc_object_t xobj = xpc_create_from_plist(addr, len);
@@ -263,6 +279,7 @@ int main(int argc, const char **argv)
             retval = -1;
         }
     }
+#endif
 
 out:;
     if(fd >= 0)

@@ -71,6 +71,10 @@ static void xpcj_print_internal(common_ctx_t *ctx, xpc_object_t obj)
         {
             common_print_bytes(ctx, xpc_data_get_bytes_ptr(obj), size);
         }
+        else if(ctx->bytes_raw)
+        {
+            fwrite(xpc_data_get_bytes_ptr(obj), size, 1, ctx->stream);
+        }
         else if(size > 0)
         {
             int pad = (ctx->lvl + 1) * 4;

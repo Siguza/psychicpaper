@@ -124,6 +124,10 @@ static void cfj_print_internal(common_ctx_t *ctx, CFTypeRef obj)
         {
             common_print_bytes(ctx, CFDataGetBytePtr(obj), size);
         }
+        else if(ctx->bytes_raw)
+        {
+            fwrite(CFDataGetBytePtr(obj), size, 1, ctx->stream);
+        }
         else if(size > 0)
         {
             int pad = (ctx->lvl + 1) * 4;
